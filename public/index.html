@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Yieldlog</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Yieldlog</h1>
+    <p>What a successful AI outcome really costs</p>
+  </header>
+
+  <form class="filters" id="filters">
+    <label>Period
+      <select id="days">
+        <option value="7">Last 7 days</option>
+        <option value="30" selected>Last 30 days</option>
+        <option value="90">Last 90 days</option>
+        <option value="3650">All time</option>
+      </select>
+    </label>
+    <label>Workflow
+      <select id="workflow"><option value="">All workflows</option></select>
+    </label>
+  </form>
+
+  <p id="error" class="notice" role="alert" hidden></p>
+
+  <main id="main" hidden>
+    <ul id="notices" class="notices"></ul>
+
+    <section class="top" aria-label="Summary">
+      <div class="card hero">
+        <h2>AI yield</h2>
+        <p id="yield" class="hero-figure"></p>
+        <p id="equation" class="muted"></p>
+      </div>
+      <dl class="tiles" id="tiles"></dl>
+    </section>
+
+    <div class="pair">
+      <section class="card">
+        <h2>Where the money goes</h2>
+        <div id="cost-bar"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>First-pass rate by week</h2>
+          <button type="button" id="weekly-toggle" class="link" aria-pressed="false">Show table</button>
+        </div>
+        <div id="weekly"></div>
+      </section>
+    </div>
+
+    <section class="card">
+      <h2>Models compared</h2>
+      <p class="muted">Reviewed outcomes only. A cheaper model isn't cheaper if people spend longer fixing its work.</p>
+      <div class="scroll" id="models"></div>
+    </section>
+
+    <section class="card">
+      <h2>Workflows</h2>
+      <div class="scroll" id="workflows"></div>
+    </section>
+
+    <section class="card">
+      <h2>Outcomes</h2>
+      <p class="muted" id="outcomes-note"></p>
+      <div class="scroll" id="outcomes"></div>
+    </section>
+
+    <p class="muted" id="prices"></p>
+  </main>
+
+  <dialog id="review-dialog" aria-labelledby="review-title">
+    <form id="review-form">
+      <h2 id="review-title">Review outcome</h2>
+      <p class="muted" id="review-name"></p>
+      <fieldset>
+        <legend>Result</legend>
+        <label><input type="radio" name="status" value="accepted" required> Accepted as it was</label>
+        <label><input type="radio" name="status" value="reworked"> Accepted after fixing</label>
+        <label><input type="radio" name="status" value="rejected"> Rejected</label>
+      </fieldset>
+      <label>Minutes spent checking
+        <input type="number" name="reviewMinutes" min="0" max="10000" step="any" required>
+      </label>
+      <label id="rework-field">Minutes spent fixing
+        <input type="number" name="reworkMinutes" min="0" max="10000" step="any" required>
+      </label>
+      <p class="notice" role="alert" hidden></p>
+      <div class="actions">
+        <button type="button" class="cancel">Cancel</button>
+        <button type="submit" class="primary">Save review</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="workflow-dialog" aria-labelledby="workflow-title">
+    <form id="workflow-form">
+      <h2 id="workflow-title">Set values</h2>
+      <p class="muted" id="workflow-name"></p>
+      <label>Value of one verified outcome (USD)
+        <input type="number" name="valuePerOutcome" min="0" step="any">
+      </label>
+      <label>Reviewer's hourly cost (USD)
+        <input type="number" name="hourlyRate" min="0" step="any">
+      </label>
+      <label>Fixed cost per month (USD): hosting, tools, integration, governance
+        <input type="number" name="fixedMonthly" min="0" step="any" required>
+      </label>
+      <p class="notice" role="alert" hidden></p>
+      <div class="actions">
+        <button type="button" class="cancel">Cancel</button>
+        <button type="submit" class="primary">Save values</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="tooltip" class="tooltip" role="status" hidden></div>
+</body>
+</html>

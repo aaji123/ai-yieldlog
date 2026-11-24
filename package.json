@@ -1,0 +1,19 @@
+{
+  "name": "yieldlog",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local tracker for what a successful AI outcome really costs.",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "start": "node src/server.ts",
+    "demo": "node src/demo.ts",
+    "prices": "node src/update-prices.ts",
+    "test": "node --test \"test/*.test.ts\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "typescript": "^5.9.0"
+  }
+}
