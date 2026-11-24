@@ -86,6 +86,9 @@ function showNotices({ summary: s, workflows }) {
   if (s.unpricedCalls > 0) {
     notices.push(`${plural(s.unpricedCalls, "call")} had no known or believable cost, so the real cost is higher than shown.`);
   }
+  if (workflows.some((w) => w.name.startsWith("Claude Code: "))) {
+    notices.push("Claude Code costs are list prices. With a subscription you pay its flat fee instead.");
+  }
   const unset = workflows.filter((w) => w.valuePerOutcome === null || w.hourlyRate === null);
   if (unset.length > 0) {
     notices.push(`Set the value and hourly cost for: ${unset.map((w) => w.name).join(", ")}. Until then they count as $0.`);

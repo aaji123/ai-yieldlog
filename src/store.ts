@@ -1,6 +1,10 @@
 import { DatabaseSync } from "node:sqlite";
 import type { Call, Outcome, Status, Workflow } from "./metrics.ts";
 import type { Cost, Usage } from "./pricing.ts";
+import { fileURLToPath } from "node:url";
+
+export const databasePath = () =>
+  process.env.YIELDLOG_DB ?? fileURLToPath(new URL("../yieldlog.db", import.meta.url));
 
 /** Prompts and answers are never stored: only counts, costs and a short label. */
 const SCHEMA = `
@@ -53,13 +57,20 @@ export type NewCall = {
   ok: boolean;
 };
 
+export type LogEntry = {
+  outcome: { id: string; workflow: string; ref: string | null };
+  call: NewCall | null;
+  at: number;
+};
+
 export type OutcomeRow = Outcome & { calls: number; modelCost: number; unpriced: number };
 
 export class Store {
   #db: DatabaseSync;
 
   constructor(path: string) {
-    this.#db = new DatabaseSync(path);
+    // Waits its turn when the tracker and an import write at the same time.
+    this.#db = new DatabaseSync(path, { timeout: 5000 });
     this.#db.exec("PRAGMA journal_mode = WAL");
     this.#db.exec(SCHEMA);
   }
@@ -69,7 +80,7 @@ export class Store {
   }
 
   transaction<T>(work: () => T): T {
-    this.#db.exec("BEGIN");
+    this.#db.exec("BEGIN IMMEDIATE");
     try {
       const result = work();
       this.#db.exec("COMMIT");
@@ -106,49 +117,54 @@ export class Store {
    * Safe to repeat, and calls can arrive in any order: an id that already exists is
    * kept, and an outcome dates from its earliest call.
    */
-  log(
-    outcome: { id: string; workflow: string; ref: string | null },
-    call: NewCall | null,
-    at: number,
-  ) {
-    this.transaction(() => {
-      this.ensureWorkflow(outcome.workflow, at);
-      this.#db
-        .prepare(
-          `INSERT INTO outcomes (id, workflow, createdAt, ref) VALUES (?, ?, ?, ?)
-           ON CONFLICT DO UPDATE SET createdAt = MIN(createdAt, excluded.createdAt)`,
-        )
-        .run(outcome.id, outcome.workflow, at, outcome.ref);
-      const existing = this.#db
-        .prepare("SELECT workflow FROM outcomes WHERE id = ?")
-        .get(outcome.id) as { workflow: string };
-      if (existing.workflow !== outcome.workflow) {
-        throw new ConflictError(`Outcome ${outcome.id} belongs to another workflow.`);
-      }
-      if (!call) return;
-      const u = call.usage;
-      this.#db
-        .prepare(
-          `INSERT OR IGNORE INTO calls (id, outcomeId, createdAt, step, model, input, cachedInput,
-             cacheWrite, output, costUsd, costSource, latencyMs, ok)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .run(
-          call.id,
-          outcome.id,
-          at,
-          call.step,
-          call.model,
-          u?.input ?? 0,
-          u?.cachedInput ?? 0,
-          (u?.cacheWrite ?? 0) + (u?.cacheWrite1h ?? 0),
-          u?.output ?? 0,
-          call.cost.usd,
-          call.cost.source,
-          call.latencyMs,
-          call.ok ? 1 : 0,
-        );
-    });
+  log(outcome: LogEntry["outcome"], call: NewCall | null, at: number) {
+    this.logAll([{ outcome, call, at }]);
+  }
+
+  /** Saves everything or nothing. Returns how many calls were new. */
+  logAll(entries: LogEntry[]): number {
+    return this.transaction(() => entries.reduce((added, e) => added + this.#logOne(e), 0));
+  }
+
+  #logOne({ outcome, call, at }: LogEntry): number {
+    this.ensureWorkflow(outcome.workflow, at);
+    this.#db
+      .prepare(
+        `INSERT INTO outcomes (id, workflow, createdAt, ref) VALUES (?, ?, ?, ?)
+         ON CONFLICT DO UPDATE SET createdAt = MIN(createdAt, excluded.createdAt),
+                                   ref = COALESCE(excluded.ref, ref)`,
+      )
+      .run(outcome.id, outcome.workflow, at, outcome.ref);
+    const existing = this.#db
+      .prepare("SELECT workflow FROM outcomes WHERE id = ?")
+      .get(outcome.id) as { workflow: string };
+    if (existing.workflow !== outcome.workflow) {
+      throw new ConflictError(`Outcome ${outcome.id} belongs to another workflow.`);
+    }
+    if (!call) return 0;
+    const u = call.usage;
+    const { changes } = this.#db
+      .prepare(
+        `INSERT OR IGNORE INTO calls (id, outcomeId, createdAt, step, model, input, cachedInput,
+           cacheWrite, output, costUsd, costSource, latencyMs, ok)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        call.id,
+        outcome.id,
+        at,
+        call.step,
+        call.model,
+        u?.input ?? 0,
+        u?.cachedInput ?? 0,
+        (u?.cacheWrite ?? 0) + (u?.cacheWrite1h ?? 0),
+        u?.output ?? 0,
+        call.cost.usd,
+        call.cost.source,
+        call.latencyMs,
+        call.ok ? 1 : 0,
+      );
+    return Number(changes);
   }
 
   review(id: string, r: { status: Status; reviewMinutes: number; reworkMinutes: number }): boolean {

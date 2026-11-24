@@ -59,6 +59,23 @@ npm run demo
 
 Open http://localhost:4601. Nothing you change in the demo is saved.
 
+## Use it with Claude Code
+
+If you use [Claude Code](https://claude.com/claude-code), you already have data. No app needed:
+
+```sh
+npm run import
+npm start
+```
+
+Open http://localhost:4600. Each session becomes one outcome, grouped by project folder. Set what a session's work is worth and what your time costs, then review the sessions: was the work accepted, fixed or rejected, and how many minutes did you spend?
+
+- Run the import again at any time. It adds only what's new and keeps your reviews.
+- `npm run import -- --dry-run` shows the total without saving anything.
+- `npm run import -- --titles` also saves session titles, which makes them easier to recognise. Titles are written from the conversation, so they're left out otherwise.
+
+**The cost is at list prices.** With a Claude subscription you pay its flat fee instead, so it isn't your bill. Some background requests, such as web page summaries, aren't in the logs and aren't counted.
+
 ## Use it with your own app
 
 **1. Start Yieldlog** and open http://localhost:4600. Your data is saved in `yieldlog.db`.
@@ -120,10 +137,10 @@ Four choices keep the numbers honest:
 
 ## Privacy and limits
 
-Yieldlog never stores prompts or answers. It keeps token counts, costs, review minutes and the label you choose, all on your own computer.
+Yieldlog never stores prompts or answers. It keeps model names, token counts, costs, times, review minutes and the labels you choose, all on your own computer. The Claude Code import also keeps project folder names, and session titles if you ask for them.
 
 - The results are only as good as the values and minutes you enter.
-- It only knows about calls your app logs. Compare the total with your provider's bill now and then.
+- It only knows about calls that are logged or imported. Compare the total with your provider's bill now and then.
 - A model comparison with few reviews can mislead.
 - List prices come from [OpenRouter](https://openrouter.ai) and may differ from your provider's. Update them with `npm run prices`.
 - It's for one person, has no login, uses US dollars, and only accepts requests from the same computer. An app running online can't reach it.
@@ -138,6 +155,7 @@ TypeScript on Node.js with its built-in SQLite, and a plain JavaScript dashboard
 | [src/pricing.ts](src/pricing.ts) | Turns token counts into a cost |
 | [src/store.ts](src/store.ts) | Saves and reads the data |
 | [src/server.ts](src/server.ts) | The API and the dashboard's web server |
+| [src/import-claude-code.ts](src/import-claude-code.ts) | Imports Claude Code sessions |
 | [src/demo.ts](src/demo.ts) | Creates the demo data |
 | [public/](public) | The dashboard |
 | [test/](test) | The tests |

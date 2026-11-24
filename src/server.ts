@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { compareModels, summarise, weekly, type Status } from "./metrics.ts";
 import { costOf, loadPrices, normaliseUsage, type PriceBook } from "./pricing.ts";
-import { ConflictError, Store, type NewCall } from "./store.ts";
+import { ConflictError, databasePath, Store, type NewCall } from "./store.ts";
 
 const MAX_BODY = 64 * 1024;
 const LIST_LIMIT = 50;
@@ -251,7 +251,5 @@ export function listen(store: Store, port: number) {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const path =
-    process.env.YIELDLOG_DB ?? fileURLToPath(new URL("../yieldlog.db", import.meta.url));
-  listen(new Store(path), Number(process.env.PORT ?? 4600));
+  listen(new Store(databasePath()), Number(process.env.PORT ?? 4600));
 }

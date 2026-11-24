@@ -8,6 +8,7 @@
   "scripts": {
     "start": "node src/server.ts",
     "demo": "node src/demo.ts",
+    "import": "node src/import-claude-code.ts",
     "prices": "node src/update-prices.ts",
     "test": "node --test \"test/*.test.ts\"",
     "typecheck": "tsc --noEmit"

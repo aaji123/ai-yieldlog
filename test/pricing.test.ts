@@ -33,6 +33,7 @@ test("Anthropic usage keeps cached tokens separate from input", () => {
     output: 50,
     reportedCost: null,
     fee: 0,
+    listPriced: true,
   });
   near(
     costOf(book, "a/big", u).usd,

@@ -9,8 +9,10 @@ export type Usage = {
   output: number;
   /** Full cost the provider reported itself, in USD. */
   reportedCost: number | null;
-  /** Reported fee that comes on top of the model's own price. */
+  /** Known fee that comes on top of the model's own price. */
   fee: number;
+  /** False when the call was billed at some other rate than the list price. */
+  listPriced: boolean;
 };
 
 /** USD per million tokens. */
@@ -82,6 +84,25 @@ export function normaliseUsage(raw: unknown): Usage | null {
   }
 }
 
+/** Anthropic's price for one web search, in USD. */
+const WEB_SEARCH_PRICE = 0.01;
+
+/**
+ * Anthropic charges other rates for fast mode, batches, some regions, and for calls
+ * where a second model stepped in. Their token counts alone don't give the cost.
+ */
+function isListPriced(u: Record<string, unknown>): boolean {
+  const usual = (v: unknown, ...allowed: string[]) =>
+    v === undefined || v === null || allowed.includes(v as string);
+  const iterations = Array.isArray(u.iterations) ? u.iterations : [];
+  return (
+    usual(u.speed, "standard") &&
+    usual(u.service_tier, "standard") &&
+    usual(u.inference_geo, "global", "not_available", "") &&
+    iterations.every((i) => object(i).type === "message")
+  );
+}
+
 function parseUsage(u: Record<string, unknown>): Usage | null {
   if ("input_tokens" in u && !("input_tokens_details" in u)) {
     const cacheWriteTotal = count(u.cache_creation_input_tokens);
@@ -89,13 +110,17 @@ function parseUsage(u: Record<string, unknown>): Usage | null {
       count(object(u.cache_creation).ephemeral_1h_input_tokens),
       cacheWriteTotal,
     );
+    const cost = reported(u);
+    const searches = count(object(u.server_tool_use).web_search_requests);
     return {
       input: requiredCount(u.input_tokens),
       cachedInput: count(u.cache_read_input_tokens),
       cacheWrite: cacheWriteTotal - oneHour,
       cacheWrite1h: oneHour,
       output: count(u.output_tokens),
-      ...reported(u),
+      reportedCost: cost.reportedCost,
+      fee: cost.fee + searches * WEB_SEARCH_PRICE,
+      listPriced: isListPriced(u),
     };
   }
 
@@ -111,6 +136,7 @@ function parseUsage(u: Record<string, unknown>): Usage | null {
       cacheWrite1h: 0,
       output: count(u.completion_tokens ?? u.output_tokens),
       ...reported(u),
+      listPriced: true,
     };
   }
 
@@ -150,7 +176,7 @@ export function costOf(book: PriceBook, model: string, usage: Usage | null): Cos
 
 function listCost(book: PriceBook, model: string, usage: Usage): number | null {
   const price = findPrice(book, model);
-  if (!price) return null;
+  if (!price || !usage.listPriced) return null;
 
   const promptTokens = usage.input + usage.cachedInput + usage.cacheWrite + usage.cacheWrite1h;
   const tier = (price.tiers ?? [])
