@@ -95,7 +95,9 @@ run.log_call("openai/gpt-4o-mini", response.usage.model_dump())
 
 **4. Review outcomes** as they come in. The figures update with each review.
 
-Usage in the Anthropic or OpenAI format works, which covers OpenAI, OpenRouter and Groq. If you stream responses, use the usage from the last chunk; some providers only send it if you ask. If Yieldlog isn't running, your app carries on without it.
+Usage in the Anthropic or OpenAI format works, which covers OpenAI, OpenRouter and Groq. If you stream responses, use the usage from the last chunk; some providers only send it if you ask.
+
+If Yieldlog isn't running, your app carries on. The calls are kept in a `.yieldlog-unsent` folder and sent after the next call that gets through, without being counted twice. Add that folder to your app's `.gitignore`.
 
 ## How it's calculated
 
@@ -112,7 +114,7 @@ Usage in the Anthropic or OpenAI format works, which covers OpenAI, OpenRouter a
 Four choices keep the numbers honest:
 
 - **Failures count.** Rejected outcomes still cost money, so they are part of what the good ones cost.
-- **Unknown isn't free.** A call without a known price is flagged, not counted as $0.
+- **Unknown isn't free.** A call without a known or believable cost is flagged, not counted as $0.
 - **History stays put.** Each cost is saved when it's logged, so later price changes don't alter it.
 - **Models are compared fairly.** Only within the same workflow, so easier work can't make a model look better.
 
@@ -121,9 +123,10 @@ Four choices keep the numbers honest:
 Yieldlog never stores prompts or answers. It keeps token counts, costs, review minutes and the label you choose, all on your own computer.
 
 - The results are only as good as the values and minutes you enter.
+- It only knows about calls your app logs. Compare the total with your provider's bill now and then.
 - A model comparison with few reviews can mislead.
 - List prices come from [OpenRouter](https://openrouter.ai) and may differ from your provider's. Update them with `npm run prices`.
-- It's for one person, uses US dollars, and only accepts requests from the same computer. An app running online can't reach it.
+- It's for one person, has no login, uses US dollars, and only accepts requests from the same computer. An app running online can't reach it.
 
 ## The code
 

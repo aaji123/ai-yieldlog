@@ -32,6 +32,7 @@ test("Anthropic usage keeps cached tokens separate from input", () => {
     cacheWrite1h: 100,
     output: 50,
     reportedCost: null,
+    fee: 0,
   });
   near(
     costOf(book, "a/big", u).usd,
@@ -93,9 +94,53 @@ test("long prompts use the higher tier only past the threshold", () => {
   near(at(101), 505 / 1e6);
 });
 
-test("negative and non-numeric counts are ignored", () => {
-  const u = normaliseUsage({ prompt_tokens: -5, completion_tokens: "9", cost: -1 });
-  assert.equal(u?.input, 0);
-  assert.equal(u?.output, 0);
-  assert.equal(u?.reportedCost, null);
+test("nonsensical counts make the cost unknown, not zero", () => {
+  const bad: unknown[] = [-5, "9", NaN, Infinity, 1e300, {}, true];
+  for (const value of bad) {
+    assert.equal(normaliseUsage({ prompt_tokens: value, completion_tokens: 1 }), null, String(value));
+    assert.equal(normaliseUsage({ prompt_tokens: 1, completion_tokens: value }), null, String(value));
+    assert.equal(normaliseUsage({ input_tokens: 1, output_tokens: value }), null, String(value));
+  }
+  assert.equal(normaliseUsage({ prompt_tokens: null, completion_tokens: null }), null);
+  assert.equal(normaliseUsage({ prompt_tokens: 5 })?.output, 0); // embeddings have no output
+});
+
+test("OpenRouter calls on your own key add the provider's charge to the fee", () => {
+  const usage = { prompt_tokens: 1000, completion_tokens: 0, cost: 0.01, is_byok: true };
+  const cost = (extra: object) => costOf(book, "a/big", normaliseUsage({ ...usage, ...extra }));
+
+  near(cost({ cost_details: { upstream_inference_cost: 0.2 } }).usd, 0.21);
+  near(cost({ cost: 0, cost_details: { upstream_inference_cost: 0.2 } }).usd, 0.2);
+
+  // The provider's charge is missing: list price plus the fee, marked as an estimate.
+  const estimated = cost({ cost_details: { upstream_inference_cost: null } });
+  near(estimated.usd, 0.004 + 0.01);
+  assert.equal(estimated.source, "estimated");
+});
+
+test("OpenRouter calls on its own key don't count the provider's charge twice", () => {
+  const u = normaliseUsage({
+    prompt_tokens: 1,
+    completion_tokens: 1,
+    cost: 0.2,
+    is_byok: false,
+    cost_details: { upstream_inference_cost: 0.2 },
+  });
+  near(costOf(book, "a/big", u).usd, 0.2);
+});
+
+test("a cost reported in an Anthropic-style response is used", () => {
+  const u = normaliseUsage({ input_tokens: 1, output_tokens: 1, cost: 0.3 });
+  assert.deepEqual(costOf(book, "a/big", u), { usd: 0.3, source: "reported" });
+});
+
+test("unbelievable reported costs are unknown, plausible ones are kept", () => {
+  const source = (model: string, cost: number, extra = {}) =>
+    costOf(book, model, normaliseUsage({ prompt_tokens: 1000, completion_tokens: 0, cost, ...extra })).source;
+  assert.equal(source("a/big", 1e12), "unknown");
+  assert.equal(source("nope", 1001), "unknown");
+  assert.equal(source("a/big", 5), "unknown"); // list price is $0.004
+  assert.equal(source("a/big", 0.5), "reported"); // could be tools or search
+  assert.equal(source("nope", 5), "reported"); // nothing to compare with
+  assert.equal(source("a/big", 1e12, { is_byok: true }), "unknown");
 });

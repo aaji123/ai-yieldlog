@@ -82,7 +82,10 @@ export class Store {
 
   ensureWorkflow(name: string, at: number) {
     this.#db
-      .prepare("INSERT OR IGNORE INTO workflows (name, createdAt) VALUES (?, ?)")
+      .prepare(
+        `INSERT INTO workflows (name, createdAt) VALUES (?, ?)
+         ON CONFLICT DO UPDATE SET createdAt = MIN(createdAt, excluded.createdAt)`,
+      )
       .run(name, at);
   }
 
@@ -99,7 +102,10 @@ export class Store {
     );
   }
 
-  /** Safe to repeat: an outcome or call id that already exists is left alone. */
+  /**
+   * Safe to repeat, and calls can arrive in any order: an id that already exists is
+   * kept, and an outcome dates from its earliest call.
+   */
   log(
     outcome: { id: string; workflow: string; ref: string | null },
     call: NewCall | null,
@@ -108,7 +114,10 @@ export class Store {
     this.transaction(() => {
       this.ensureWorkflow(outcome.workflow, at);
       this.#db
-        .prepare("INSERT OR IGNORE INTO outcomes (id, workflow, createdAt, ref) VALUES (?, ?, ?, ?)")
+        .prepare(
+          `INSERT INTO outcomes (id, workflow, createdAt, ref) VALUES (?, ?, ?, ?)
+           ON CONFLICT DO UPDATE SET createdAt = MIN(createdAt, excluded.createdAt)`,
+        )
         .run(outcome.id, outcome.workflow, at, outcome.ref);
       const existing = this.#db
         .prepare("SELECT workflow FROM outcomes WHERE id = ?")

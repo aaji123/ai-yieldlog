@@ -84,7 +84,7 @@ function showSummary({ summary: s }) {
 function showNotices({ summary: s, workflows }) {
   const notices = [];
   if (s.unpricedCalls > 0) {
-    notices.push(`${plural(s.unpricedCalls, "call")} had no known price, so the real cost is higher than shown.`);
+    notices.push(`${plural(s.unpricedCalls, "call")} had no known or believable cost, so the real cost is higher than shown.`);
   }
   const unset = workflows.filter((w) => w.valuePerOutcome === null || w.hourlyRate === null);
   if (unset.length > 0) {

@@ -8,6 +8,8 @@ import { ConflictError, Store, type NewCall } from "./store.ts";
 const MAX_BODY = 64 * 1024;
 const LIST_LIMIT = 50;
 const DAY = 86_400_000;
+const MAX_AGE = 365 * DAY;
+const MAX_CLOCK_SKEW = 5 * 60_000;
 const STATUSES = ["pending", "accepted", "reworked", "rejected"];
 
 const FILES: Record<string, [file: string, type: string]> = {
@@ -93,6 +95,16 @@ function parseCall(raw: unknown, prices: PriceBook): NewCall | null {
   };
 }
 
+/** When the call was made. Clients send it because a resent call arrives late. */
+function parseTime(body: Body, now: number): number {
+  const at = body.at;
+  if (at === undefined || at === null) return now;
+  if (typeof at !== "number" || !(at >= now - MAX_AGE && at <= now + MAX_CLOCK_SKEW)) {
+    throw new HttpError(400, `"at" must be a time in milliseconds within the last year.`);
+  }
+  return Math.min(Math.round(at), now);
+}
+
 function report(store: Store, prices: PriceBook, query: URLSearchParams, now: number) {
   const days = Number(query.get("days") ?? 30);
   if (!Number.isInteger(days) || days < 1 || days > 3650) {
@@ -139,7 +151,8 @@ export function createApp(store: Store, prices: PriceBook, clock: () => number =
       throw new HttpError(403, "Only local requests are allowed.");
     }
 
-    const url = new URL(req.url ?? "/", "http://localhost");
+    const url = URL.parse(req.url ?? "/", "http://localhost");
+    if (!url) throw new HttpError(400, "Not a valid address.");
     const path = url.pathname;
     const send = (status: number, data: unknown) => {
       res.writeHead(status, { "content-type": "application/json", "cache-control": "no-store" });
@@ -171,7 +184,7 @@ export function createApp(store: Store, prices: PriceBook, clock: () => number =
         ref: optionalText(body, "ref", 200),
       };
       const call = parseCall(body.call, prices);
-      store.log(outcome, call, clock());
+      store.log(outcome, call, parseTime(body, clock()));
       return send(201, { cost: call?.cost ?? null });
     }
 
